@@ -1,6 +1,6 @@
 import QtQuick 2.2
 import QtQuick.Controls 1.0
-import QtQuick.Dialogs 1.0
+import QtQuick.Dialogs 1.1
 
 ApplicationWindow {
     visible: true
@@ -11,14 +11,17 @@ ApplicationWindow {
     FileDialog {
         id: fileDialog
         title: "Please choose a file"
+        nameFilters: [ "Shockwave Flash (*.swf)" ]
         onAccepted: {
             console.log("You chose: " + fileDialog.fileUrls)
-            Qt.quit()
+            loadSwf(fileUrl)
         }
         onRejected: {
             console.log("Canceled")
-            Qt.quit()
         }
+    }
+    MessageDialog {
+        id: messageDialog
     }
 
     menuBar: MenuBar {
@@ -37,8 +40,23 @@ ApplicationWindow {
         }
     }
 
-    Label {
-        text: qsTr("Hello World")
-        anchors.centerIn: parent
+    Image {
+        id: image
+        anchors.fill: parent
+        fillMode: Image.PreserveAspectFit
+        cache: false
+        source: "qrc:/swf-open-file-format.png"
+        onStatusChanged: {
+            console.log("Image status ", status)
+            if (status == Image.Error) {
+                messageDialog.text = "Failed to load " + fileDialog.fileUrl
+                messageDialog.open()
+                source = "qrc:/swf-open-file-format.png"
+            }
+        }
+    }
+
+    function loadSwf(fileName) {
+        image.source = "image://swf/" + fileName + "/0"
     }
 }
