@@ -44,19 +44,28 @@ ApplicationWindow {
 
     Image {
         id: image
-        anchors.fill: parent
-        fillMode: Image.PreserveAspectFit
+        visible: false
         cache: false
-        source: "qrc:/swf-open-file-format.png"
         onStatusChanged: {
             console.log("Image status ", status)
             if (status == Image.Error) {
                 messageDialog.text = "Failed to load " + image.source
                 messageDialog.open()
                 timer.stop()
-                source = "qrc:/swf-open-file-format.png"
+            }
+            else if (status == Image.Ready)
+            {
+                imageShown.source = image.source
             }
         }
+    }
+
+    Image {
+        id: imageShown
+        anchors.fill: parent
+        fillMode: Image.PreserveAspectFit
+        cache: false
+        source: "qrc:/swf-open-file-format.png"
     }
 
     Timer {

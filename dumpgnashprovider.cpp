@@ -44,6 +44,10 @@ QImage DumpGnashProvider::requestImage(const QString &id, QSize *size, const QSi
             QMetaObject::invokeMethod(this, "slotContinueDumpGnash", Qt::QueuedConnection,
                                       Q_ARG(int, idx));
         }
+        else if (m_pro && m_swfFile == uri && m_frameIdx == idx + 1)
+        {
+            m_sema.release();
+        }
         else
         {
             QMetaObject::invokeMethod(this, "slotStartDumpGnash", Qt::QueuedConnection,
