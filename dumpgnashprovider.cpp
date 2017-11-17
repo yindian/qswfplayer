@@ -13,23 +13,20 @@
 #define LONG_WAIT_ITVL  500
 
 DumpGnashProvider::DumpGnashProvider(QObject *parent) : QObject(parent)
-  , QQuickImageProvider(QQuickImageProvider::Image/*, QQuickImageProvider::ForceAsynchronousImageLoading*/)
+  , QQuickImageProvider(QQuickImageProvider::Image, QQuickImageProvider::ForceAsynchronousImageLoading)
   , m_pro(NULL)
   , m_frameIdx(0)
   , m_frameReq(-1)
   , m_fifo(NULL)
   , m_fifoSkt(NULL)
+  , m_sema(1)
 {
     connect(this, SIGNAL(signalFrameData(int,QByteArray)), this, SLOT(slotFrameData(int,QByteArray)));
 }
 
 QImage DumpGnashProvider::requestImage(const QString &id, QSize *size, const QSize &requestedSize)
 {
-    QSize sz(SWF_WIDTH, SWF_HEIGHT);
-    if (requestedSize.isValid())
-    {
-        sz = requestedSize;
-    }
+    static const QSize sz(SWF_WIDTH, SWF_HEIGHT);
     int pos = id.lastIndexOf('/');
     Q_ASSERT(pos > 0);
     QString uri = id.left(pos);
@@ -42,14 +39,21 @@ QImage DumpGnashProvider::requestImage(const QString &id, QSize *size, const QSi
     {
         return m_frame;
     }
-    cleanUp();
-    m_swfFile = uri;
     do
     {
-        VERIFY_OR_BREAK(startDumpGnash());
+        VERIFY_OR_BREAK(m_sema.tryAcquire());
+        QMetaObject::invokeMethod(this, "slotStartDumpGnash", Qt::QueuedConnection,
+                                  Q_ARG(QString, uri),
+                                  Q_ARG(int, idx));
+        m_sema.acquire();
+        m_sema.release();
         if (size)
         {
             *size = sz;
+        }
+        if (requestedSize.isValid() && !m_frame.isNull())
+        {
+            return m_frame.scaled(requestedSize);
         }
         return m_frame;
     } while (0);
@@ -83,15 +87,29 @@ void DumpGnashProvider::slotError()
 void DumpGnashProvider::slotReadyRead()
 {
     QIODevice *in = qobject_cast<QIODevice *>(sender());
-    Q_ASSERT(in);
+    if (!in)
+    {
+        in = m_fifoSkt;
+    }
 //    qDebug() << "got" << in->bytesAvailable() << "bytes";
+    if (m_sema.available())
+    {
+        qDebug() << "frame" << m_frameIdx << "req" << m_frameReq << "available";
+        return;
+    }
     m_buf.append(in->readAll());
     static const int frameSize = SWF_WIDTH * SWF_HEIGHT * 4;
-    while (m_buf.size() >= frameSize)
+    while (m_buf.size() >= frameSize && m_frameIdx <= m_frameReq)
     {
         QByteArray ba = m_buf.mid(frameSize);
         m_buf.truncate(frameSize);
         emit signalFrameData(m_frameIdx++, m_buf);
+        if (m_frameIdx > m_frameReq)
+        {
+            m_frameBuf = m_buf;
+            m_frame = QImage((const uchar *) m_frameBuf.constData(), SWF_WIDTH, SWF_HEIGHT, QImage::Format_ARGB32_Premultiplied);
+            m_sema.release();
+        }
         m_buf = ba;
     }
 }
@@ -100,6 +118,18 @@ void DumpGnashProvider::slotFrameData(int frameIdx, QByteArray buf)
 {
     qDebug() << "got" << "frame" << frameIdx;
     Q_UNUSED(buf);
+}
+
+void DumpGnashProvider::slotStartDumpGnash(QString uri, int frameReq)
+{
+    Q_ASSERT(m_sema.available() == 0);
+    cleanUp();
+    m_swfFile = uri;
+    m_frameReq = frameReq;
+    if (!startDumpGnash())
+    {
+        qDebug() << "failed to start";
+    }
 }
 
 void DumpGnashProvider::cleanUp()
@@ -139,6 +169,7 @@ void DumpGnashProvider::cleanUp()
     m_frameIdx = 0;
     m_frameReq = -1;
     m_frame = QImage();
+    m_frameBuf.clear();
     m_buf.clear();
     m_timer.invalidate();
 }
@@ -155,7 +186,7 @@ bool DumpGnashProvider::startDumpGnash()
         qDebug() << fifo;
         VERIFY_OR_BREAK_AND(mkfifo(fifo.toLocal8Bit().constData(), 0666) == 0, perror("mkfifo"));
         qDebug() << "fifo" << fifo << "created";
-        m_pro = new QProcess();
+        m_pro = new QProcess(this);
         m_pro->setProcessChannelMode(QProcess::ForwardedChannels);
         connect(m_pro, SIGNAL(finished(int, QProcess::ExitStatus)), this, SLOT(slotFinished()));
         connect(m_pro, SIGNAL(error(QProcess::ProcessError)), this, SLOT(slotError()));
@@ -169,16 +200,17 @@ bool DumpGnashProvider::startDumpGnash()
         qDebug() << "dump-gnash" << args;
         VERIFY_OR_BREAK(m_pro->waitForStarted(LONG_WAIT_ITVL));
         m_timer.start();
-        m_fifo = new QFile(fifo);
+        m_fifo = new QFile(fifo, this);
         VERIFY_OR_BREAK(m_fifo->open(QFile::ReadOnly));
         qDebug() << "fifo" << fifo << "opened";
-        m_fifoSkt = new QTcpSocket();
+        m_fifoSkt = new QTcpSocket(this);
         VERIFY_OR_BREAK(m_fifoSkt->setSocketDescriptor(m_fifo->handle(), QAbstractSocket::ConnectedState, QIODevice::ReadOnly));
         connect(m_fifoSkt, SIGNAL(readyRead()), this, SLOT(slotReadyRead()));
         qDebug() << "socket" << m_fifoSkt->socketDescriptor()<< "connected";
         return true;
     } while (0);
     cleanUp();
+    m_sema.release();
     return false;
 }
 

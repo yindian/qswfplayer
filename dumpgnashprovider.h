@@ -4,6 +4,7 @@
 #include <QObject>
 #include <QQuickImageProvider>
 #include <QElapsedTimer>
+#include <QSemaphore>
 
 #if 0
 #define SWF_WIDTH   960
@@ -36,6 +37,7 @@ protected slots:
     void slotError();
     void slotReadyRead();
     void slotFrameData(int frameIdx, QByteArray buf);
+    void slotStartDumpGnash(QString uri, int frameReq);
 
 private:
     void cleanUp();
@@ -47,8 +49,10 @@ private:
     QTcpSocket *m_fifoSkt;
     QString m_swfFile;
     QImage m_frame;
+    QByteArray m_frameBuf;
     QByteArray m_buf;
     QElapsedTimer m_timer;
+    QSemaphore m_sema;
 };
 
 #endif // DUMPGNASHPROVIDER_H
