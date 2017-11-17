@@ -1,6 +1,7 @@
 TEMPLATE = app
 
 QT += qml quick widgets
+QT += network
 
 SOURCES += main.cpp \
     dumpgnashprovider.cpp
