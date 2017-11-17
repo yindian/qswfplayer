@@ -42,9 +42,13 @@ protected slots:
 private:
     void cleanUp();
     bool startDumpGnash();
+    void stopDumpGnash();
+    void contDumpGnash();
+    bool isDumpGnashStopped();
     QProcess *m_pro;
     int m_frameIdx;
     int m_frameReq;
+    bool m_stopped;
     QFile *m_fifo;
     QTcpSocket *m_fifoSkt;
     QString m_swfFile;

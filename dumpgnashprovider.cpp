@@ -17,6 +17,7 @@ DumpGnashProvider::DumpGnashProvider(QObject *parent) : QObject(parent)
   , m_pro(NULL)
   , m_frameIdx(0)
   , m_frameReq(-1)
+  , m_stopped(false)
   , m_fifo(NULL)
   , m_fifoSkt(NULL)
   , m_sema(1)
@@ -109,6 +110,7 @@ void DumpGnashProvider::slotReadyRead()
             m_frameBuf = m_buf;
             m_frame = QImage((const uchar *) m_frameBuf.constData(), SWF_WIDTH, SWF_HEIGHT, QImage::Format_ARGB32_Premultiplied);
             m_sema.release();
+            stopDumpGnash();
         }
         m_buf = ba;
     }
@@ -212,5 +214,44 @@ bool DumpGnashProvider::startDumpGnash()
     cleanUp();
     m_sema.release();
     return false;
+}
+
+void DumpGnashProvider::stopDumpGnash()
+{
+    if (isDumpGnashStopped())
+    {
+        qDebug() << "already stopped";
+        return;
+    }
+    if (!m_pro->processId())
+    {
+        qDebug() << "not started";
+        return;
+    }
+    m_stopped = true;
+    ::kill(m_pro->processId(), SIGSTOP);
+    qDebug() << "stopped";
+}
+
+void DumpGnashProvider::contDumpGnash()
+{
+    if (!isDumpGnashStopped())
+    {
+        qDebug() << "not stopped";
+        return;
+    }
+    if (!m_pro->processId())
+    {
+        qDebug() << "not started";
+        return;
+    }
+    m_stopped = false;
+    ::kill(m_pro->processId(), SIGCONT);
+    qDebug() << "continued";
+}
+
+bool DumpGnashProvider::isDumpGnashStopped()
+{
+    return m_stopped;
 }
 
