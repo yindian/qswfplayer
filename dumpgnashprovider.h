@@ -38,12 +38,13 @@ protected slots:
     void slotReadyRead();
     void slotFrameData(int frameIdx, QByteArray buf);
     void slotStartDumpGnash(QString uri, int frameReq);
+    void slotContinueDumpGnash(int frameReq);
 
 private:
     void cleanUp();
     bool startDumpGnash();
-    void stopDumpGnash();
-    void contDumpGnash();
+    bool stopDumpGnash();
+    bool contDumpGnash();
     bool isDumpGnashStopped();
     QProcess *m_pro;
     int m_frameIdx;

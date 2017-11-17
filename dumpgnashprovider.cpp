@@ -36,16 +36,20 @@ QImage DumpGnashProvider::requestImage(const QString &id, QSize *size, const QSi
     Q_UNUSED(ok);
     int idx = id.mid(pos + 1).toInt(&ok);
     Q_ASSERT(ok);
-    if (m_pro && m_swfFile == uri && m_frameIdx <= idx)
-    {
-        return m_frame;
-    }
     do
     {
         VERIFY_OR_BREAK(m_sema.tryAcquire());
-        QMetaObject::invokeMethod(this, "slotStartDumpGnash", Qt::QueuedConnection,
-                                  Q_ARG(QString, uri),
-                                  Q_ARG(int, idx));
+        if (m_pro && m_swfFile == uri && m_frameIdx <= idx)
+        {
+            QMetaObject::invokeMethod(this, "slotContinueDumpGnash", Qt::QueuedConnection,
+                                      Q_ARG(int, idx));
+        }
+        else
+        {
+            QMetaObject::invokeMethod(this, "slotStartDumpGnash", Qt::QueuedConnection,
+                                      Q_ARG(QString, uri),
+                                      Q_ARG(int, idx));
+        }
         m_sema.acquire();
         m_sema.release();
         if (size)
@@ -134,12 +138,23 @@ void DumpGnashProvider::slotStartDumpGnash(QString uri, int frameReq)
     }
 }
 
+void DumpGnashProvider::slotContinueDumpGnash(int frameReq)
+{
+    Q_ASSERT(m_sema.available() == 0);
+    m_frameReq = frameReq;
+    if (!contDumpGnash())
+    {
+        qDebug() << "failed to resume";
+    }
+}
+
 void DumpGnashProvider::cleanUp()
 {
     if (m_pro)
     {
         if (m_pro->processId())
         {
+            ::kill(m_pro->processId(), SIGINT);
             ::kill(m_pro->processId(), SIGINT);
             if (!m_pro->waitForFinished(SHORT_WAIT_ITVL))
             {
@@ -168,6 +183,7 @@ void DumpGnashProvider::cleanUp()
         m_fifoSkt = NULL;
     }
     m_swfFile.clear();
+    m_stopped = false;
     m_frameIdx = 0;
     m_frameReq = -1;
     m_frame = QImage();
@@ -216,38 +232,40 @@ bool DumpGnashProvider::startDumpGnash()
     return false;
 }
 
-void DumpGnashProvider::stopDumpGnash()
+bool DumpGnashProvider::stopDumpGnash()
 {
     if (isDumpGnashStopped())
     {
         qDebug() << "already stopped";
-        return;
+        return true;
     }
     if (!m_pro->processId())
     {
         qDebug() << "not started";
-        return;
+        return false;
     }
     m_stopped = true;
     ::kill(m_pro->processId(), SIGSTOP);
     qDebug() << "stopped";
+    return true;
 }
 
-void DumpGnashProvider::contDumpGnash()
+bool DumpGnashProvider::contDumpGnash()
 {
     if (!isDumpGnashStopped())
     {
         qDebug() << "not stopped";
-        return;
+        return true;
     }
     if (!m_pro->processId())
     {
         qDebug() << "not started";
-        return;
+        return false;
     }
     m_stopped = false;
     ::kill(m_pro->processId(), SIGCONT);
     qDebug() << "continued";
+    return true;
 }
 
 bool DumpGnashProvider::isDumpGnashStopped()

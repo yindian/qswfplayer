@@ -3,6 +3,8 @@ import QtQuick.Controls 1.0
 import QtQuick.Dialogs 1.1
 
 ApplicationWindow {
+    property string swfFileName: ""
+    property int swfFrameIdx: 0
     visible: true
     width: 640
     height: 480
@@ -49,14 +51,27 @@ ApplicationWindow {
         onStatusChanged: {
             console.log("Image status ", status)
             if (status == Image.Error) {
-                messageDialog.text = "Failed to load " + fileDialog.fileUrl
+                messageDialog.text = "Failed to load " + image.source
                 messageDialog.open()
+                timer.stop()
                 source = "qrc:/swf-open-file-format.png"
             }
         }
     }
 
+    Timer {
+        id: timer
+        repeat: true
+        interval: 1000 / SwfFps
+        onTriggered: {
+            image.source = "image://swf/%1/%2".arg(swfFileName).arg(++swfFrameIdx)
+        }
+    }
+
     function loadSwf(fileName) {
-        image.source = "image://swf/" + fileName + "/0"
+        swfFileName = fileName
+        swfFrameIdx = 0
+        image.source = "image://swf/%1/%2".arg(swfFileName).arg(swfFrameIdx)
+        timer.start()
     }
 }
