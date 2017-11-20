@@ -31,7 +31,9 @@ QImage DumpGnashProvider::requestImage(const QString &id, QSize *size, const QSi
     int pos = id.lastIndexOf('/');
     Q_ASSERT(pos > 0);
     QString uri = id.left(pos);
+#if SWF_DEBUG
     qDebug() << id << uri << id.mid(pos + 1);
+#endif
     bool ok = false;
     Q_UNUSED(ok);
     int idx = id.mid(pos + 1).toInt(&ok);
@@ -105,7 +107,9 @@ void DumpGnashProvider::slotReadyRead()
 //    qDebug() << "got" << in->bytesAvailable() << "bytes";
     if (m_sema.available())
     {
+#if SWF_DEBUG
         qDebug() << "frame" << m_frameIdx << "req" << m_frameReq << "available";
+#endif
         return;
     }
     m_buf.append(in->readAll());
@@ -128,7 +132,9 @@ void DumpGnashProvider::slotReadyRead()
 
 void DumpGnashProvider::slotFrameData(int frameIdx, QByteArray buf)
 {
+#if SWF_DEBUG
     qDebug() << "got" << "frame" << frameIdx;
+#endif
     Q_UNUSED(buf);
 }
 
@@ -214,9 +220,13 @@ bool DumpGnashProvider::startDumpGnash()
         QString fifo = tmpFile.fileName();
         tmpFile.close();
         tmpFile.remove();
+#if SWF_DEBUG
         qDebug() << fifo;
+#endif
         VERIFY_OR_BREAK_AND(mkfifo(fifo.toLocal8Bit().constData(), 0666) == 0, perror("mkfifo"));
+#if SWF_DEBUG
         qDebug() << "fifo" << fifo << "created";
+#endif
         m_pro = new QProcess(this);
         m_pro->setProcessChannelMode(QProcess::ForwardedChannels);
         connect(m_pro, SIGNAL(finished(int, QProcess::ExitStatus)), this, SLOT(slotFinished()));
@@ -229,16 +239,22 @@ bool DumpGnashProvider::startDumpGnash()
         args << "-D" << QStringLiteral("%1@%2").arg(fifo).arg(SWF_FPS);
         args << m_swfFile;
         m_pro->start("dump-gnash", args);
+#if SWF_DEBUG
         qDebug() << "dump-gnash" << args;
+#endif
         VERIFY_OR_BREAK(m_pro->waitForStarted(LONG_WAIT_ITVL));
         m_timer.start();
         m_fifo = new QFile(fifo, this);
         VERIFY_OR_BREAK(m_fifo->open(QFile::ReadOnly));
+#if SWF_DEBUG
         qDebug() << "fifo" << fifo << "opened";
+#endif
         m_fifoSkt = new QTcpSocket(this);
         VERIFY_OR_BREAK(m_fifoSkt->setSocketDescriptor(m_fifo->handle(), QAbstractSocket::ConnectedState, QIODevice::ReadOnly));
         connect(m_fifoSkt, SIGNAL(readyRead()), this, SLOT(slotReadyRead()));
+#if SWF_DEBUG
         qDebug() << "socket" << m_fifoSkt->socketDescriptor()<< "connected";
+#endif
         return true;
     } while (0);
     cleanUp();
@@ -260,7 +276,9 @@ bool DumpGnashProvider::stopDumpGnash()
     }
     m_stopped = true;
     ::kill(m_pro->processId(), SIGSTOP);
+#if SWF_DEBUG
     qDebug() << "stopped";
+#endif
     return true;
 }
 
@@ -278,7 +296,9 @@ bool DumpGnashProvider::contDumpGnash()
     }
     m_stopped = false;
     ::kill(m_pro->processId(), SIGCONT);
+#if SWF_DEBUG
     qDebug() << "continued";
+#endif
     return true;
 }
 

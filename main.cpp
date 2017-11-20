@@ -10,6 +10,7 @@ int main(int argc, char *argv[])
     QQmlApplicationEngine engine;
     QQuickImageProvider *swfBackend = new DumpGnashProvider(&app);
     engine.addImageProvider("swf", swfBackend);
+    engine.rootContext()->setContextProperty("SwfDebug", SWF_DEBUG);
     engine.rootContext()->setContextProperty("SwfFps", SWF_FPS);
     engine.load(QUrl(QStringLiteral("qrc:/main.qml")));
 

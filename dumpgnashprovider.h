@@ -6,6 +6,7 @@
 #include <QElapsedTimer>
 #include <QSemaphore>
 
+#define SWF_DEBUG 0
 #if 0
 #define SWF_WIDTH   960
 #define SWF_HEIGHT  540

@@ -51,6 +51,7 @@ ApplicationWindow {
         cache: false
         source: "qrc:/swf-open-file-format.png"
         onStatusChanged: {
+            if (SwfDebug)
             console.log("Image status ", status)
             if (status == Image.Error) {
                 if (preroll)
@@ -59,6 +60,7 @@ ApplicationWindow {
                     messageDialog.open()
                 }
                 timer.stop()
+                if (SwfDebug)
                 console.log("timer should be stopped")
             }
             else if (status == Image.Ready)
@@ -79,9 +81,11 @@ ApplicationWindow {
         cache: false
         source: "qrc:/swf-open-file-format.png"
         onStatusChanged: {
+            if (SwfDebug)
             console.log("Image2 status ", status)
             if (status == Image.Error) {
                 timer.stop()
+                if (SwfDebug)
                 console.log("timer should be stopped")
             }
             else if (status == Image.Ready)
