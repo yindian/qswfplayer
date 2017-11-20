@@ -135,7 +135,14 @@ void DumpGnashProvider::slotFrameData(int frameIdx, QByteArray buf)
 void DumpGnashProvider::slotStartDumpGnash(QString uri, int frameReq)
 {
     Q_ASSERT(m_sema.available() == 0);
-    cleanUp();
+    if (m_pro)
+    {
+        cleanUp();
+        QMetaObject::invokeMethod(this, "slotStartDumpGnash", Qt::QueuedConnection,
+                                  Q_ARG(QString, uri),
+                                  Q_ARG(int, frameReq));
+        return;
+    }
     m_swfFile = uri;
     m_frameReq = frameReq;
     if (!startDumpGnash())
@@ -216,6 +223,7 @@ bool DumpGnashProvider::startDumpGnash()
         connect(m_pro, SIGNAL(error(QProcess::ProcessError)), this, SLOT(slotError()));
         QStringList args;
         args << "-1" << "-r" << "1";
+//        args << "-v" << "-a" << "-p";
         args << "-j" << QString::number(SWF_WIDTH);
         args << "-k" << QString::number(SWF_HEIGHT);
         args << "-D" << QStringLiteral("%1@%2").arg(fifo).arg(SWF_FPS);
