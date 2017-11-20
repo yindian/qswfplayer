@@ -5,6 +5,7 @@ import QtQuick.Dialogs 1.1
 ApplicationWindow {
     property string swfFileName: ""
     property int swfFrameIdx: 0
+    property bool preroll: false
     visible: true
     width: 640
     height: 480
@@ -44,28 +45,53 @@ ApplicationWindow {
 
     Image {
         id: image
-        visible: false
+        visible: true
+        anchors.fill: parent
+        fillMode: Image.PreserveAspectFit
         cache: false
+        source: "qrc:/swf-open-file-format.png"
         onStatusChanged: {
             console.log("Image status ", status)
             if (status == Image.Error) {
-                messageDialog.text = "Failed to load " + image.source
-                messageDialog.open()
+                if (preroll)
+                {
+                    messageDialog.text = "Failed to load " + image.source
+                    messageDialog.open()
+                }
                 timer.stop()
+                console.log("timer should be stopped")
             }
             else if (status == Image.Ready)
             {
-                imageShown.source = image.source
+                if (preroll && source.toString().substring(0, 12) === "image://swf/")
+                {
+                    image2.source = "image://swf/%1/%2".arg(swfFileName).arg(++swfFrameIdx)
+                }
             }
         }
     }
 
     Image {
-        id: imageShown
+        id: image2
+        visible: false
         anchors.fill: parent
         fillMode: Image.PreserveAspectFit
         cache: false
         source: "qrc:/swf-open-file-format.png"
+        onStatusChanged: {
+            console.log("Image2 status ", status)
+            if (status == Image.Error) {
+                timer.stop()
+                console.log("timer should be stopped")
+            }
+            else if (status == Image.Ready)
+            {
+                if (preroll)
+                {
+                    preroll = false;
+                }
+            }
+        }
     }
 
     Timer {
@@ -73,13 +99,50 @@ ApplicationWindow {
         repeat: true
         interval: 1000 / SwfFps
         onTriggered: {
-            image.source = "image://swf/%1/%2".arg(swfFileName).arg(++swfFrameIdx)
+            if (preroll)
+            {
+                console.log("prerolling")
+                return;
+            }
+            if (image.visible)
+            {
+                if (image2.status == Image.Ready)
+                {
+                    image2.visible = true
+                    image.visible = false
+                    image.source = "image://swf/%1/%2".arg(swfFileName).arg(++swfFrameIdx)
+                }
+                else
+                {
+                    console.log("image2 not ready")
+                }
+            }
+            else if (image2.visible)
+            {
+                if (image.status == Image.Ready)
+                {
+                    image.visible = true
+                    image2.visible = false
+                    image2.source = "image://swf/%1/%2".arg(swfFileName).arg(++swfFrameIdx)
+                }
+                else
+                {
+                    console.log("image not ready")
+                }
+            }
+            else
+            {
+                console.log("???")
+            }
         }
     }
 
     function loadSwf(fileName) {
         swfFileName = fileName
         swfFrameIdx = 0
+        preroll = true
+        image.source = "qrc:/swf-open-file-format.png"
+        image.visible = true
         image.source = "image://swf/%1/%2".arg(swfFileName).arg(swfFrameIdx)
         timer.start()
     }

@@ -80,6 +80,8 @@ void DumpGnashProvider::slotFinished()
     Q_ASSERT(pro);
     qDebug() << "exit" << "status" << pro->exitStatus() << "code" << pro->exitCode() << "elapsed" << m_timer.elapsed() << "ms";
     m_timer.invalidate();
+    m_frame = QImage();
+    m_sema.release();
 }
 
 void DumpGnashProvider::slotError()
