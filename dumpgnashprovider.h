@@ -6,7 +6,8 @@
 #include <QElapsedTimer>
 #include <QSemaphore>
 
-#define SWF_DEBUG 0
+#define SWF_DEBUG 1
+#define SWF_AUDIO
 #if 0
 #define SWF_WIDTH   960
 #define SWF_HEIGHT  540
@@ -37,6 +38,9 @@ protected slots:
     void slotFinished();
     void slotError();
     void slotReadyRead();
+#ifdef SWF_AUDIO
+    void slotReadyReadAudio();
+#endif
     void slotFrameData(int frameIdx, QByteArray buf);
     void slotStartDumpGnash(QString uri, int frameReq);
     void slotContinueDumpGnash(int frameReq);
@@ -53,6 +57,11 @@ private:
     bool m_stopped;
     QFile *m_fifo;
     QTcpSocket *m_fifoSkt;
+#ifdef SWF_AUDIO
+    QFile *m_audFifo;
+    QTcpSocket *m_audFifoSkt;
+    QByteArray m_bufAudio;
+#endif
     QString m_swfFile;
     QImage m_frame;
     QByteArray m_frameBuf;

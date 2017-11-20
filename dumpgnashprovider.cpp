@@ -20,6 +20,10 @@ DumpGnashProvider::DumpGnashProvider(QObject *parent) : QObject(parent)
   , m_stopped(false)
   , m_fifo(NULL)
   , m_fifoSkt(NULL)
+  #ifdef SWF_AUDIO
+  , m_audFifo(NULL)
+  , m_audFifoSkt(NULL)
+  #endif
   , m_sema(1)
 {
     connect(this, SIGNAL(signalFrameData(int,QByteArray)), this, SLOT(slotFrameData(int,QByteArray)));
@@ -100,10 +104,7 @@ void DumpGnashProvider::slotError()
 void DumpGnashProvider::slotReadyRead()
 {
     QIODevice *in = qobject_cast<QIODevice *>(sender());
-    if (!in)
-    {
-        in = m_fifoSkt;
-    }
+    Q_ASSERT(in);
 //    qDebug() << "got" << in->bytesAvailable() << "bytes";
     if (m_sema.available())
     {
@@ -129,6 +130,15 @@ void DumpGnashProvider::slotReadyRead()
         m_buf = ba;
     }
 }
+
+#ifdef SWF_AUDIO
+void DumpGnashProvider::slotReadyReadAudio()
+{
+    QIODevice *in = qobject_cast<QIODevice *>(sender());
+    Q_ASSERT(in);
+    qDebug() << "got" << in->bytesAvailable() << "bytes";
+}
+#endif
 
 void DumpGnashProvider::slotFrameData(int frameIdx, QByteArray buf)
 {
@@ -201,6 +211,20 @@ void DumpGnashProvider::cleanUp()
         m_fifoSkt->deleteLater();
         m_fifoSkt = NULL;
     }
+#ifdef SWF_AUDIO
+    if (m_audFifo)
+    {
+        m_audFifo->remove();
+        m_audFifo->deleteLater();
+        m_audFifo = NULL;
+    }
+    if (m_audFifoSkt)
+    {
+        m_audFifoSkt->disconnect();
+        m_audFifoSkt->deleteLater();
+        m_audFifoSkt = NULL;
+    }
+#endif
     m_swfFile.clear();
     m_stopped = false;
     m_frameIdx = 0;
@@ -227,6 +251,13 @@ bool DumpGnashProvider::startDumpGnash()
 #if SWF_DEBUG
         qDebug() << "fifo" << fifo << "created";
 #endif
+#ifdef SWF_AUDIO
+        static const QString dotAudio = QStringLiteral(".audio");
+        VERIFY_OR_BREAK_AND(mkfifo((fifo + dotAudio).toLocal8Bit().constData(), 0666) == 0, perror("mkfifo"));
+#if SWF_DEBUG
+        qDebug() << "fifo" << (fifo + dotAudio) << "created";
+#endif
+#endif
         m_pro = new QProcess(this);
         m_pro->setProcessChannelMode(QProcess::ForwardedChannels);
         connect(m_pro, SIGNAL(finished(int, QProcess::ExitStatus)), this, SLOT(slotFinished()));
@@ -237,6 +268,9 @@ bool DumpGnashProvider::startDumpGnash()
         args << "-j" << QString::number(SWF_WIDTH);
         args << "-k" << QString::number(SWF_HEIGHT);
         args << "-D" << QStringLiteral("%1@%2").arg(fifo).arg(SWF_FPS);
+#ifdef SWF_AUDIO
+        args << "-A" << (fifo + dotAudio);
+#endif
         args << m_swfFile;
         m_pro->start("dump-gnash", args);
 #if SWF_DEBUG
@@ -254,6 +288,20 @@ bool DumpGnashProvider::startDumpGnash()
         connect(m_fifoSkt, SIGNAL(readyRead()), this, SLOT(slotReadyRead()));
 #if SWF_DEBUG
         qDebug() << "socket" << m_fifoSkt->socketDescriptor()<< "connected";
+#endif
+#ifdef SWF_AUDIO
+        fifo += dotAudio;
+        m_audFifo = new QFile(fifo, this);
+        VERIFY_OR_BREAK(m_audFifo->open(QFile::ReadOnly));
+#if SWF_DEBUG
+        qDebug() << "fifo" << fifo << "opened";
+#endif
+        m_audFifoSkt = new QTcpSocket(this);
+        VERIFY_OR_BREAK(m_audFifoSkt->setSocketDescriptor(m_audFifo->handle(), QAbstractSocket::ConnectedState, QIODevice::ReadOnly));
+        connect(m_audFifoSkt, SIGNAL(readyRead()), this, SLOT(slotReadyReadAudio()));
+#if SWF_DEBUG
+        qDebug() << "socket" << m_audFifoSkt->socketDescriptor()<< "connected";
+#endif
 #endif
         return true;
     } while (0);

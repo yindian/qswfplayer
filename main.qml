@@ -21,6 +21,7 @@ ApplicationWindow {
         }
         onRejected: {
             console.log("Canceled")
+            close()
         }
     }
     MessageDialog {
