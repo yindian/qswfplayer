@@ -143,6 +143,7 @@ ApplicationWindow {
     }
 
     function loadSwf(fileName) {
+        timer.stop()
         swfFileName = fileName
         swfFrameIdx = 0
         preroll = true

@@ -2,6 +2,7 @@ TEMPLATE = app
 
 QT += qml quick widgets
 QT += network
+QT += multimedia
 
 SOURCES += main.cpp \
     dumpgnashprovider.cpp

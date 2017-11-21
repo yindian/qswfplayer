@@ -1,8 +1,10 @@
 #include "dumpgnashprovider.h"
+#include <QAudioOutput>
 #include <QDebug>
 #include <QProcess>
 #include <QTcpSocket>
 #include <QTemporaryFile>
+#include <QtEndian>
 #include <signal.h>
 #include <sys/stat.h>
 
@@ -11,6 +13,14 @@
 
 #define SHORT_WAIT_ITVL 100
 #define LONG_WAIT_ITVL  500
+
+#ifdef SWF_AUDIO
+#define STATE_WAV_HEADER    0
+#define STATE_WAV_DATA      1
+
+#define WAVE_FORMAT_UNKNOWN 0x0000
+#define WAVE_FORMAT_PCM     0x0001
+#endif
 
 DumpGnashProvider::DumpGnashProvider(QObject *parent) : QObject(parent)
   , QQuickImageProvider(QQuickImageProvider::Image, QQuickImageProvider::ForceAsynchronousImageLoading)
@@ -23,6 +33,9 @@ DumpGnashProvider::DumpGnashProvider(QObject *parent) : QObject(parent)
   #ifdef SWF_AUDIO
   , m_audFifo(NULL)
   , m_audFifoSkt(NULL)
+  , m_audioState(STATE_WAV_HEADER)
+  , m_audioOutput(NULL)
+  , m_feed(NULL)
   #endif
   , m_sema(1)
 {
@@ -87,6 +100,14 @@ void DumpGnashProvider::slotFinished()
     qDebug() << "exit" << "status" << pro->exitStatus() << "code" << pro->exitCode() << "elapsed" << m_timer.elapsed() << "ms";
     m_timer.invalidate();
     m_frame = QImage();
+#ifdef SWF_AUDIO
+    QFile f("/tmp/record.wav");
+    if (f.open(QIODevice::WriteOnly))
+    {
+        f.write(m_bufAudio);
+        f.close();
+    }
+#endif
     m_sema.release();
 }
 
@@ -105,7 +126,9 @@ void DumpGnashProvider::slotReadyRead()
 {
     QIODevice *in = qobject_cast<QIODevice *>(sender());
     Q_ASSERT(in);
+#if SWF_DEBUG
 //    qDebug() << "got" << in->bytesAvailable() << "bytes";
+#endif
     if (m_sema.available())
     {
 #if SWF_DEBUG
@@ -136,7 +159,24 @@ void DumpGnashProvider::slotReadyReadAudio()
 {
     QIODevice *in = qobject_cast<QIODevice *>(sender());
     Q_ASSERT(in);
-    qDebug() << "got" << in->bytesAvailable() << "bytes";
+#if SWF_DEBUG
+//    qDebug() << "got" << in->bytesAvailable() << "bytes";
+#endif
+    m_bufAudio.append(in->readAll());
+    if (m_audioState == STATE_WAV_HEADER)
+    {
+        if (prepareAudioOutput())
+        {
+#if SWF_DEBUG
+            qDebug() << "wave header read";
+#endif
+            m_audioState = STATE_WAV_DATA;
+        }
+    }
+    if (m_audioState == STATE_WAV_HEADER)
+    {
+
+    }
 }
 #endif
 
@@ -145,6 +185,7 @@ void DumpGnashProvider::slotFrameData(int frameIdx, QByteArray buf)
 #if SWF_DEBUG
     qDebug() << "got" << "frame" << frameIdx;
 #endif
+    Q_UNUSED(frameIdx);
     Q_UNUSED(buf);
 }
 
@@ -224,6 +265,14 @@ void DumpGnashProvider::cleanUp()
         m_audFifoSkt->deleteLater();
         m_audFifoSkt = NULL;
     }
+    m_audioState = STATE_WAV_HEADER;
+    if (m_audioOutput)
+    {
+        m_audioOutput->deleteLater();
+        m_audioOutput = NULL;
+    }
+    m_feed = NULL; // owned by audio output
+    m_bufAudio.clear();
 #endif
     m_swfFile.clear();
     m_stopped = false;
@@ -234,6 +283,55 @@ void DumpGnashProvider::cleanUp()
     m_buf.clear();
     m_timer.invalidate();
 }
+
+#ifdef SWF_AUDIO
+bool DumpGnashProvider::prepareAudioOutput()
+{
+    do
+    {
+        VERIFY_OR_BREAK(m_bufAudio.startsWith("RIFF"));
+        VERIFY_OR_BREAK(m_bufAudio.mid(8, 8) == "WAVEfmt ");
+        int pos = 16;
+        VERIFY_OR_BREAK(m_bufAudio.size() >= pos + 4/*len*/ + 16/*fmt fields*/ + 4/*data*/ + 4/*len*/);
+#define READ16_N_ADVANCE    ({quint16 ret = qFromLittleEndian<quint16>((const uchar *) m_bufAudio.constData() + pos); pos += 2; ret;})
+#define READ32_N_ADVANCE    ({quint32 ret = qFromLittleEndian<quint32>((const uchar *) m_bufAudio.constData() + pos); pos += 4; ret;})
+        quint32 len = READ32_N_ADVANCE;
+        VERIFY_OR_BREAK(len >= 16);
+        int oldPos = pos;
+        quint16 wFormatTag = READ16_N_ADVANCE;
+        VERIFY_OR_BREAK(wFormatTag == WAVE_FORMAT_PCM || wFormatTag == WAVE_FORMAT_UNKNOWN);
+        m_audioFormat.setByteOrder(QAudioFormat::LittleEndian);
+        m_audioFormat.setCodec("audio/pcm");
+        m_audioFormat.setChannelCount(READ16_N_ADVANCE);
+        m_audioFormat.setSampleRate(READ32_N_ADVANCE);
+        quint32 nAvgBytesPerSec = READ32_N_ADVANCE;
+        Q_UNUSED(nAvgBytesPerSec);
+        quint16 nBlockAlign = READ16_N_ADVANCE;
+        Q_UNUSED(nBlockAlign);
+        m_audioFormat.setSampleSize(READ16_N_ADVANCE);
+        m_audioFormat.setSampleType(m_audioFormat.sampleSize() == 8 ? QAudioFormat::UnSignedInt : QAudioFormat::SignedInt);
+        qDebug() << m_audioFormat;
+        pos = oldPos + len;
+        while (m_bufAudio.mid(pos, 4) != "data")
+        {
+            VERIFY_OR_BREAK(m_bufAudio.size() > pos + 8);
+            qDebug() << "skipping" << m_bufAudio.mid(pos, 4);
+            pos += 4;
+            len = READ32_N_ADVANCE;
+            pos += len;
+        }
+        VERIFY_OR_BREAK(m_bufAudio.mid(pos, 4) == "data");
+        pos += 8; // skip len
+        VERIFY_OR_BREAK(m_bufAudio.size() >= pos);
+#ifdef SWF_DEBUG
+        qDebug() << "got audio data";
+#endif
+        m_bufAudio = m_bufAudio.mid(pos);
+        return true;
+    } while (0);
+    return false;
+}
+#endif
 
 bool DumpGnashProvider::startDumpGnash()
 {
@@ -263,7 +361,11 @@ bool DumpGnashProvider::startDumpGnash()
         connect(m_pro, SIGNAL(finished(int, QProcess::ExitStatus)), this, SLOT(slotFinished()));
         connect(m_pro, SIGNAL(error(QProcess::ProcessError)), this, SLOT(slotError()));
         QStringList args;
+#ifdef SWF_AUDIO
+        args << "-1" << "-r" << "3";
+#else
         args << "-1" << "-r" << "1";
+#endif
 //        args << "-v" << "-a" << "-p";
         args << "-j" << QString::number(SWF_WIDTH);
         args << "-k" << QString::number(SWF_HEIGHT);

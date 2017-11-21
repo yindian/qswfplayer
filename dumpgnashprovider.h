@@ -6,8 +6,12 @@
 #include <QElapsedTimer>
 #include <QSemaphore>
 
-#define SWF_DEBUG 1
+#define SWF_DEBUG 0
 #define SWF_AUDIO
+#ifdef SWF_AUDIO
+#include <QAudioFormat>
+#endif
+
 #if 0
 #define SWF_WIDTH   960
 #define SWF_HEIGHT  540
@@ -17,6 +21,7 @@
 #endif
 #define SWF_FPS     25
 
+class QAudioOutput;
 class QFile;
 class QProcess;
 class QTcpSocket;
@@ -47,6 +52,9 @@ protected slots:
 
 private:
     void cleanUp();
+#ifdef SWF_AUDIO
+    bool prepareAudioOutput();
+#endif
     bool startDumpGnash();
     bool stopDumpGnash();
     bool contDumpGnash();
@@ -60,7 +68,11 @@ private:
 #ifdef SWF_AUDIO
     QFile *m_audFifo;
     QTcpSocket *m_audFifoSkt;
+    int m_audioState;
+    QAudioOutput *m_audioOutput;
+    QIODevice *m_feed;
     QByteArray m_bufAudio;
+    QAudioFormat m_audioFormat;
 #endif
     QString m_swfFile;
     QImage m_frame;
