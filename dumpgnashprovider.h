@@ -9,7 +9,9 @@
 #define SWF_DEBUG 0
 #define SWF_AUDIO
 #ifdef SWF_AUDIO
+#include <QAudio>
 #include <QAudioFormat>
+#include <QTimer>
 #endif
 
 #if 0
@@ -45,6 +47,8 @@ protected slots:
     void slotReadyRead();
 #ifdef SWF_AUDIO
     void slotReadyReadAudio();
+    void slotPushAudio();
+    void slotNewAudioState(QAudio::State state);
 #endif
     void slotFrameData(int frameIdx, QByteArray buf);
     void slotStartDumpGnash(QString uri, int frameReq);
@@ -73,6 +77,7 @@ private:
     QIODevice *m_feed;
     QByteArray m_bufAudio;
     QAudioFormat m_audioFormat;
+    QTimer m_audioTimer;
 #endif
     QString m_swfFile;
     QImage m_frame;

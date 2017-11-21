@@ -40,6 +40,10 @@ DumpGnashProvider::DumpGnashProvider(QObject *parent) : QObject(parent)
   , m_sema(1)
 {
     connect(this, SIGNAL(signalFrameData(int,QByteArray)), this, SLOT(slotFrameData(int,QByteArray)));
+#ifdef SWF_AUDIO
+    connect(&m_audioTimer, SIGNAL(timeout()), this, SLOT(slotPushAudio()));
+    m_audioTimer.setInterval(20);
+#endif
 }
 
 QImage DumpGnashProvider::requestImage(const QString &id, QSize *size, const QSize &requestedSize)
@@ -100,14 +104,6 @@ void DumpGnashProvider::slotFinished()
     qDebug() << "exit" << "status" << pro->exitStatus() << "code" << pro->exitCode() << "elapsed" << m_timer.elapsed() << "ms";
     m_timer.invalidate();
     m_frame = QImage();
-#ifdef SWF_AUDIO
-    QFile f("/tmp/record.wav");
-    if (f.open(QIODevice::WriteOnly))
-    {
-        f.write(m_bufAudio);
-        f.close();
-    }
-#endif
     m_sema.release();
 }
 
@@ -173,13 +169,54 @@ void DumpGnashProvider::slotReadyReadAudio()
             m_audioState = STATE_WAV_DATA;
         }
     }
-    if (m_audioState == STATE_WAV_DATA && m_audioOutput->bytesFree())
+    if (m_audioState == STATE_WAV_DATA)
+    {
+        slotPushAudio();
+    }
+}
+
+void DumpGnashProvider::slotPushAudio()
+{
+    if (m_audioOutput && m_audioOutput->bytesFree() && !m_bufAudio.isEmpty())
     {
         int written = m_feed->write(m_bufAudio);
         if (written > 0)
         {
             m_bufAudio = m_bufAudio.mid(written);
         }
+    }
+}
+
+void DumpGnashProvider::slotNewAudioState(QAudio::State state)
+{
+    QAudioOutput *audio = qobject_cast<QAudioOutput *>(sender());
+    Q_ASSERT(audio);
+    Q_ASSERT(audio == m_audioOutput);
+#ifdef SWF_DEBUG
+    qDebug() << "audio state" << state;
+#endif
+    switch (state) {
+    case QAudio::IdleState:
+        if (m_pro->state() == QProcess::NotRunning)
+        {
+#ifdef SWF_DEBUG
+            qDebug() << "to stop audio";
+#endif
+            audio->stop();
+        }
+        break;
+
+    case QAudio::StoppedState:
+        if (audio->error() != QAudio::NoError) {
+            qDebug() << "audio error" << audio->error();
+        }
+//        m_audioOutput->deleteLater();
+//        m_audioOutput = NULL;
+//        m_feed = NULL;
+        break;
+
+    default:
+        break;
     }
 }
 #endif
@@ -276,6 +313,7 @@ void DumpGnashProvider::cleanUp()
         m_audioOutput = NULL;
     }
     m_feed = NULL; // owned by audio output
+    m_audioTimer.stop();
     m_bufAudio.clear();
 #endif
     m_swfFile.clear();
@@ -336,7 +374,10 @@ bool DumpGnashProvider::prepareAudioOutput()
             delete m_audioOutput;
         }
         m_audioOutput = new QAudioOutput(m_audioFormat, this);
+        connect(m_audioOutput, SIGNAL(stateChanged(QAudio::State)), this, SLOT(slotNewAudioState(QAudio::State)));
+        m_feed = NULL;
         m_feed = m_audioOutput->start();
+        m_audioTimer.start();
         return true;
     } while (0);
     return false;
