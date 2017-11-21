@@ -173,9 +173,13 @@ void DumpGnashProvider::slotReadyReadAudio()
             m_audioState = STATE_WAV_DATA;
         }
     }
-    if (m_audioState == STATE_WAV_HEADER)
+    if (m_audioState == STATE_WAV_DATA && m_audioOutput->bytesFree())
     {
-
+        int written = m_feed->write(m_bufAudio);
+        if (written > 0)
+        {
+            m_bufAudio = m_bufAudio.mid(written);
+        }
     }
 }
 #endif
@@ -323,10 +327,16 @@ bool DumpGnashProvider::prepareAudioOutput()
         VERIFY_OR_BREAK(m_bufAudio.mid(pos, 4) == "data");
         pos += 8; // skip len
         VERIFY_OR_BREAK(m_bufAudio.size() >= pos);
-#ifdef SWF_DEBUG
+#if SWF_DEBUG
         qDebug() << "got audio data";
 #endif
         m_bufAudio = m_bufAudio.mid(pos);
+        if (m_audioOutput)
+        {
+            delete m_audioOutput;
+        }
+        m_audioOutput = new QAudioOutput(m_audioFormat, this);
+        m_feed = m_audioOutput->start();
         return true;
     } while (0);
     return false;
