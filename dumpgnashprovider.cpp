@@ -135,6 +135,11 @@ void DumpGnashProvider::slotReadyRead()
         return;
     }
     m_buf.append(in->readAll());
+    parseVideo();
+}
+
+void DumpGnashProvider::parseVideo()
+{
     static const int frameSize = SWF_WIDTH * SWF_HEIGHT * 4;
     while (m_buf.size() >= frameSize && m_frameIdx <= m_frameReq)
     {
@@ -146,7 +151,14 @@ void DumpGnashProvider::slotReadyRead()
             m_frameBuf = m_buf;
             m_frame = QImage((const uchar *) m_frameBuf.constData(), SWF_WIDTH, SWF_HEIGHT, QImage::Format_ARGB32_Premultiplied);
             m_sema.release();
+#ifndef SWF_AUDIO
             stopDumpGnash();
+#else
+            if (!m_audioOutput || m_audioOutput->processedUSecs() * SWF_FPS / 1000 > m_frameIdx)
+            {
+                stopDumpGnash();
+            }
+#endif
         }
         m_buf = ba;
     }
@@ -174,6 +186,10 @@ void DumpGnashProvider::slotReadyReadAudio()
     if (m_audioState == STATE_WAV_DATA)
     {
         slotPushAudio();
+    }
+    if (!isDumpGnashStopped() && m_frameIdx > m_frameReq && (!m_audioOutput || m_audioOutput->processedUSecs() * SWF_FPS / 1000 > m_frameIdx))
+    {
+        stopDumpGnash();
     }
 }
 
@@ -257,6 +273,11 @@ void DumpGnashProvider::slotContinueDumpGnash(int frameReq)
 {
     Q_ASSERT(m_sema.available() == 0);
     m_frameReq = frameReq;
+    parseVideo();
+    if (m_sema.available())
+    {
+        return;
+    }
     if (!contDumpGnash())
     {
         qDebug() << "failed to resume";

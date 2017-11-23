@@ -45,6 +45,7 @@ protected slots:
     void slotFinished();
     void slotError();
     void slotReadyRead();
+    void parseVideo();
 #ifdef SWF_AUDIO
     void slotReadyReadAudio();
     void slotPushAudio();
