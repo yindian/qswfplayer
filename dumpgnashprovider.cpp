@@ -2,6 +2,7 @@
 #include <QAudioOutput>
 #include <QCoreApplication>
 #include <QDebug>
+#include <QEvent>
 #include <QProcess>
 #include <QTcpSocket>
 #include <QTemporaryFile>
@@ -42,6 +43,9 @@ DumpGnashProvider::DumpGnashProvider(QObject *parent) : QObject(parent)
 {
     connect(this, SIGNAL(signalFrameData(int,QByteArray)), this, SLOT(slotFrameData(int,QByteArray)));
     connect(QCoreApplication::instance(), SIGNAL(aboutToQuit()), this, SLOT(cleanUp()));
+#if SWF_DEBUG
+    QCoreApplication::instance()->installEventFilter(this);
+#endif
 #ifdef SWF_AUDIO
     connect(&m_audioTimer, SIGNAL(timeout()), this, SLOT(slotPushAudio()));
     m_audioTimer.setInterval(20);
@@ -94,6 +98,12 @@ QImage DumpGnashProvider::requestImage(const QString &id, QSize *size, const QSi
     return QImage();
 }
 
+bool DumpGnashProvider::eventFilter(QObject *obj, QEvent *event)
+{
+    qDebug() << "~~~~" << obj << event << event->type();
+    return QObject::eventFilter(obj, event);
+}
+
 DumpGnashProvider::~DumpGnashProvider()
 {
     cleanUp();
@@ -118,6 +128,13 @@ void DumpGnashProvider::slotError()
     {
         qDebug() << "failed to start" << pro->program();
     }
+}
+
+void DumpGnashProvider::slotSocketError()
+{
+    QTcpSocket *skt = qobject_cast<QTcpSocket *>(sender());
+    Q_ASSERT(skt);
+    qDebug() << "!!!" << skt->errorString();
 }
 
 void DumpGnashProvider::slotReadyRead()
@@ -462,8 +479,10 @@ bool DumpGnashProvider::startDumpGnash()
         qDebug() << "fifo" << fifo << "opened";
 #endif
         m_fifoSkt = new QTcpSocket(this);
+        m_fifoSkt->setObjectName("video socket");
         VERIFY_OR_BREAK(m_fifoSkt->setSocketDescriptor(m_fifo->handle(), QAbstractSocket::ConnectedState, QIODevice::ReadOnly));
         connect(m_fifoSkt, SIGNAL(readyRead()), this, SLOT(slotReadyRead()));
+        connect(m_fifoSkt, SIGNAL(error(QAbstractSocket::SocketError)), this, SLOT(slotSocketError()));
 #if SWF_DEBUG
         qDebug() << "socket" << m_fifoSkt->socketDescriptor()<< "connected";
 #endif
@@ -475,8 +494,10 @@ bool DumpGnashProvider::startDumpGnash()
         qDebug() << "fifo" << fifo << "opened";
 #endif
         m_audFifoSkt = new QTcpSocket(this);
+        m_audFifoSkt->setObjectName("audio socket");
         VERIFY_OR_BREAK(m_audFifoSkt->setSocketDescriptor(m_audFifo->handle(), QAbstractSocket::ConnectedState, QIODevice::ReadOnly));
         connect(m_audFifoSkt, SIGNAL(readyRead()), this, SLOT(slotReadyReadAudio()));
+        connect(m_audFifoSkt, SIGNAL(error(QAbstractSocket::SocketError)), this, SLOT(slotSocketError()));
 #if SWF_DEBUG
         qDebug() << "socket" << m_audFifoSkt->socketDescriptor()<< "connected";
 #endif

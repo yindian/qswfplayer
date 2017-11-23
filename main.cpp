@@ -5,6 +5,9 @@
 
 int main(int argc, char *argv[])
 {
+#if SWF_DEBUG
+    qSetMessagePattern("[%{time process} %{function} %{line} %{threadid}] %{if-category}%{category}: %{endif}%{message}");
+#endif
     QApplication app(argc, argv);
 
     QQmlApplicationEngine engine;

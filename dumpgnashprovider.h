@@ -6,8 +6,8 @@
 #include <QElapsedTimer>
 #include <QSemaphore>
 
-#define SWF_DEBUG 0
-#define SWF_AUDIO
+#define SWF_DEBUG 1
+//#define SWF_AUDIO
 #ifdef SWF_AUDIO
 #include <QAudio>
 #include <QAudioFormat>
@@ -33,8 +33,9 @@ class DumpGnashProvider : public QObject, public QQuickImageProvider
     Q_OBJECT
 public:
     explicit DumpGnashProvider(QObject *parent = 0);
-    virtual QImage requestImage(const QString &id, QSize *size, const QSize &requestedSize);
-    ~DumpGnashProvider();
+    QImage requestImage(const QString &id, QSize *size, const QSize &requestedSize) Q_DECL_OVERRIDE;
+    bool eventFilter(QObject *obj, QEvent *event) Q_DECL_OVERRIDE;
+    ~DumpGnashProvider() Q_DECL_OVERRIDE;
 
 signals:
     void signalFrameData(int frameIdx, QByteArray buf);
@@ -44,6 +45,7 @@ public slots:
 protected slots:
     void slotFinished();
     void slotError();
+    void slotSocketError();
     void slotReadyRead();
     void parseVideo();
 #ifdef SWF_AUDIO
