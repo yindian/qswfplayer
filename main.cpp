@@ -8,7 +8,7 @@ int main(int argc, char *argv[])
     QApplication app(argc, argv);
 
     QQmlApplicationEngine engine;
-    QQuickImageProvider *swfBackend = new DumpGnashProvider(&app);
+    QQuickImageProvider *swfBackend = new DumpGnashProvider;
     engine.addImageProvider("swf", swfBackend);
     engine.rootContext()->setContextProperty("SwfDebug", SWF_DEBUG);
     engine.rootContext()->setContextProperty("SwfFps", SWF_FPS);

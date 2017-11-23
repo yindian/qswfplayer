@@ -53,9 +53,9 @@ protected slots:
     void slotFrameData(int frameIdx, QByteArray buf);
     void slotStartDumpGnash(QString uri, int frameReq);
     void slotContinueDumpGnash(int frameReq);
+    void cleanUp();
 
 private:
-    void cleanUp();
 #ifdef SWF_AUDIO
     bool prepareAudioOutput();
 #endif

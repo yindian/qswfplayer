@@ -1,5 +1,6 @@
 #include "dumpgnashprovider.h"
 #include <QAudioOutput>
+#include <QCoreApplication>
 #include <QDebug>
 #include <QProcess>
 #include <QTcpSocket>
@@ -40,6 +41,7 @@ DumpGnashProvider::DumpGnashProvider(QObject *parent) : QObject(parent)
   , m_sema(1)
 {
     connect(this, SIGNAL(signalFrameData(int,QByteArray)), this, SLOT(slotFrameData(int,QByteArray)));
+    connect(QCoreApplication::instance(), SIGNAL(aboutToQuit()), this, SLOT(cleanUp()));
 #ifdef SWF_AUDIO
     connect(&m_audioTimer, SIGNAL(timeout()), this, SLOT(slotPushAudio()));
     m_audioTimer.setInterval(20);
@@ -191,7 +193,6 @@ void DumpGnashProvider::slotNewAudioState(QAudio::State state)
 {
     QAudioOutput *audio = qobject_cast<QAudioOutput *>(sender());
     Q_ASSERT(audio);
-    Q_ASSERT(audio == m_audioOutput);
 #ifdef SWF_DEBUG
     qDebug() << "audio state" << state;
 #endif
@@ -203,6 +204,12 @@ void DumpGnashProvider::slotNewAudioState(QAudio::State state)
             qDebug() << "to stop audio";
 #endif
             audio->stop();
+            m_audioTimer.stop();
+            if (m_audFifoSkt)
+            {
+                m_audFifoSkt->deleteLater();
+                m_audFifoSkt = NULL;
+            }
         }
         break;
 
@@ -210,9 +217,6 @@ void DumpGnashProvider::slotNewAudioState(QAudio::State state)
         if (audio->error() != QAudio::NoError) {
             qDebug() << "audio error" << audio->error();
         }
-//        m_audioOutput->deleteLater();
-//        m_audioOutput = NULL;
-//        m_feed = NULL;
         break;
 
     default:
