@@ -44,7 +44,7 @@ DumpGnashProvider::DumpGnashProvider(QObject *parent) : QObject(parent)
     connect(this, SIGNAL(signalFrameData(int,QByteArray)), this, SLOT(slotFrameData(int,QByteArray)));
     connect(QCoreApplication::instance(), SIGNAL(aboutToQuit()), this, SLOT(cleanUp()));
 #if SWF_DEBUG
-    QCoreApplication::instance()->installEventFilter(this);
+//    QCoreApplication::instance()->installEventFilter(this);
 #endif
 #ifdef SWF_AUDIO
     connect(&m_audioTimer, SIGNAL(timeout()), this, SLOT(slotPushAudio()));
@@ -115,8 +115,7 @@ void DumpGnashProvider::slotFinished()
     Q_ASSERT(pro);
     qDebug() << "exit" << "status" << pro->exitStatus() << "code" << pro->exitCode() << "elapsed" << m_timer.elapsed() << "ms";
     m_timer.invalidate();
-    m_frame = QImage();
-    m_sema.release();
+    QTimer::singleShot(1000 / SWF_FPS / 2, this, SLOT(generateFrame()));
 }
 
 void DumpGnashProvider::slotError()
@@ -295,6 +294,14 @@ void DumpGnashProvider::slotContinueDumpGnash(int frameReq)
     {
         return;
     }
+    if (m_pro->state() == QProcess::NotRunning)
+    {
+#if SWF_DEBUG
+        qDebug() << "not running";
+#endif
+        generateFrame();
+        return;
+    }
     if (!contDumpGnash())
     {
         qDebug() << "failed to resume";
@@ -366,6 +373,20 @@ void DumpGnashProvider::cleanUp()
     m_frameBuf.clear();
     m_buf.clear();
     m_timer.invalidate();
+}
+
+void DumpGnashProvider::generateFrame()
+{
+    if (!m_sema.available())
+    {
+        m_frame = QImage();
+        m_sema.release();
+        if (m_fifoSkt)
+        {
+            m_fifoSkt->deleteLater();
+            m_fifoSkt = NULL;
+        }
+    }
 }
 
 #ifdef SWF_AUDIO

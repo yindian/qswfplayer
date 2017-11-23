@@ -5,13 +5,13 @@
 #include <QQuickImageProvider>
 #include <QElapsedTimer>
 #include <QSemaphore>
+#include <QTimer>
 
-#define SWF_DEBUG 1
-//#define SWF_AUDIO
+#define SWF_DEBUG 0
+#define SWF_AUDIO
 #ifdef SWF_AUDIO
 #include <QAudio>
 #include <QAudioFormat>
-#include <QTimer>
 #endif
 
 #if 0
@@ -57,6 +57,7 @@ protected slots:
     void slotStartDumpGnash(QString uri, int frameReq);
     void slotContinueDumpGnash(int frameReq);
     void cleanUp();
+    void generateFrame();
 
 private:
 #ifdef SWF_AUDIO
