@@ -6,6 +6,7 @@ ApplicationWindow {
     property string swfFileName: ""
     property int swfFrameIdx: 0
     property int preroll: 0
+    property bool debug: SwfDebug
     visible: true
     width: 640
     height: 480
@@ -65,7 +66,7 @@ ApplicationWindow {
         cache: false
         source: "qrc:/swf-open-file-format.png"
         onStatusChanged: {
-            if (SwfDebug)
+            if (debug)
             console.log("Image status ", status, source, preroll)
             if (status == Image.Error) {
                 if (preroll)
@@ -74,7 +75,7 @@ ApplicationWindow {
                     messageDialog.open()
                 }
                 timer.stop()
-                if (SwfDebug)
+                if (debug)
                 console.log("timer should be stopped")
             }
             else if (status == Image.Ready)
@@ -95,13 +96,13 @@ ApplicationWindow {
         anchors.fill: parent
         fillMode: Image.PreserveAspectFit
         cache: false
-        source: "qrc:/swf-open-file-format.png"
+        source: ""
         onStatusChanged: {
-            if (SwfDebug)
+            if (debug)
             console.log("Image2 status ", status, source, preroll)
             if (status == Image.Error) {
                 timer.stop()
-                if (SwfDebug)
+                if (debug)
                 console.log("timer should be stopped")
             }
             else if (status == Image.Ready)
@@ -121,7 +122,7 @@ ApplicationWindow {
         onTriggered: {
             if (preroll)
             {
-                console.log("prerolling")
+                console.log("prerolling", preroll);
                 return;
             }
             if (image.visible)
@@ -156,12 +157,19 @@ ApplicationWindow {
             }
         }
         onRunningChanged: {
-            if (SwfDebug)
+            if (debug)
             console.log("timer running ", running)
         }
     }
 
+    Component.onCompleted: {
+//        debug = true
+    }
+
     function loadSwf(fileName) {
+        if (preroll) {
+            return;
+        }
         timer.stop()
         if (!fileName) {
             return;
@@ -172,6 +180,7 @@ ApplicationWindow {
         image.source = "qrc:/swf-open-file-format.png"
         image.visible = true
         image.source = "image://swf/%1/%2".arg(swfFileName).arg(swfFrameIdx)
+        image2.source = "";
     }
 
     function stopSwf() {
