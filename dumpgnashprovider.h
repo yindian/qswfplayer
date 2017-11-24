@@ -21,7 +21,7 @@
 #define SWF_WIDTH   1920
 #define SWF_HEIGHT  1080
 #endif
-#define SWF_FPS     25
+#define SWF_FPS     24
 
 class QAudioOutput;
 class QFile;

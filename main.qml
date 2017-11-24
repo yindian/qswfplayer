@@ -69,6 +69,7 @@ ApplicationWindow {
                 if (preroll && source.toString().substring(0, 12) === "image://swf/")
                 {
                     image2.source = "image://swf/%1/%2".arg(swfFileName).arg(++swfFrameIdx)
+                    timer.start()
                 }
             }
         }
@@ -150,6 +151,5 @@ ApplicationWindow {
         image.source = "qrc:/swf-open-file-format.png"
         image.visible = true
         image.source = "image://swf/%1/%2".arg(swfFileName).arg(swfFrameIdx)
-        timer.start()
     }
 }

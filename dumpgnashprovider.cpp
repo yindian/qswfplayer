@@ -19,6 +19,7 @@
 #ifdef SWF_AUDIO
 #define STATE_WAV_HEADER    0
 #define STATE_WAV_DATA      1
+#define STATE_WAV_SYNC      2
 
 #define WAVE_FORMAT_UNKNOWN 0x0000
 #define WAVE_FORMAT_PCM     0x0001
@@ -174,6 +175,13 @@ void DumpGnashProvider::parseVideo()
             {
                 stopDumpGnash();
             }
+            if (m_audioOutput && m_audioState == STATE_WAV_SYNC)
+            {
+                m_audioState = STATE_WAV_DATA;
+                m_feed = m_audioOutput->start();
+                m_audioTimer.start();
+                slotPushAudio();
+            }
 #endif
         }
         m_buf = ba;
@@ -197,6 +205,10 @@ void DumpGnashProvider::slotReadyReadAudio()
             qDebug() << "wave header read";
 #endif
             m_audioState = STATE_WAV_DATA;
+            if (!m_frameIdx)
+            {
+                m_audioState = STATE_WAV_SYNC;
+            }
         }
     }
     if (m_audioState == STATE_WAV_DATA)
@@ -213,6 +225,11 @@ void DumpGnashProvider::slotPushAudio()
 {
     if (m_audioOutput && m_audioOutput->bytesFree() && !m_bufAudio.isEmpty())
     {
+        if (!m_feed)
+        {
+            qDebug() << "invalid feed";
+            return;
+        }
         int written = m_feed->write(m_bufAudio);
         if (written > 0)
         {
@@ -232,10 +249,11 @@ void DumpGnashProvider::slotNewAudioState(QAudio::State state)
     case QAudio::IdleState:
         if (m_pro->state() == QProcess::NotRunning)
         {
-#ifdef SWF_DEBUG
+#if SWF_DEBUG
             qDebug() << "to stop audio";
 #endif
             audio->stop();
+            m_feed = NULL;
             m_audioTimer.stop();
             if (m_audFifoSkt)
             {
@@ -439,8 +457,6 @@ bool DumpGnashProvider::prepareAudioOutput()
         m_audioOutput = new QAudioOutput(m_audioFormat, this);
         connect(m_audioOutput, SIGNAL(stateChanged(QAudio::State)), this, SLOT(slotNewAudioState(QAudio::State)));
         m_feed = NULL;
-        m_feed = m_audioOutput->start();
-        m_audioTimer.start();
         return true;
     } while (0);
     return false;
