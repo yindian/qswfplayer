@@ -165,13 +165,14 @@ void DumpGnashProvider::parseVideo()
         emit signalFrameData(m_frameIdx++, m_buf);
         if (m_frameIdx > m_frameReq)
         {
+            m_lastFrameBuf = m_frameBuf;
             m_frameBuf = m_buf;
             m_frame = QImage((const uchar *) m_frameBuf.constData(), SWF_WIDTH, SWF_HEIGHT, QImage::Format_ARGB32_Premultiplied);
             m_sema.release();
 #ifndef SWF_AUDIO
             stopDumpGnash();
 #else
-            if (!m_audioOutput || m_audioOutput->processedUSecs() * SWF_FPS / 1000 > m_frameIdx)
+            if (gotEnoughAudio())
             {
                 stopDumpGnash();
             }
@@ -215,7 +216,7 @@ void DumpGnashProvider::slotReadyReadAudio()
     {
         slotPushAudio();
     }
-    if (!isDumpGnashStopped() && m_frameIdx > m_frameReq && (!m_audioOutput || m_audioOutput->processedUSecs() * SWF_FPS / 1000 > m_frameIdx))
+    if (!isDumpGnashStopped() && m_frameIdx > m_frameReq && gotEnoughAudio())
     {
         stopDumpGnash();
     }
@@ -388,7 +389,6 @@ void DumpGnashProvider::cleanUp()
     m_frameIdx = 0;
     m_frameReq = -1;
     m_frame = QImage();
-    m_frameBuf.clear();
     m_buf.clear();
     m_timer.invalidate();
 }
@@ -460,6 +460,22 @@ bool DumpGnashProvider::prepareAudioOutput()
         return true;
     } while (0);
     return false;
+}
+
+bool DumpGnashProvider::gotEnoughAudio()
+{
+#if 0
+    bool ret = !m_audioOutput || m_audioOutput->processedUSecs() * SWF_FPS / 1000000 > m_frameIdx;
+    if (ret)
+    {
+#if SWF_DEBUG
+        qDebug() << "got enough audio";
+#endif
+    }
+    return ret;
+#else
+    return true;
+#endif
 }
 #endif
 
@@ -570,7 +586,9 @@ bool DumpGnashProvider::contDumpGnash()
 {
     if (!isDumpGnashStopped())
     {
+#if SWF_DEBUG
         qDebug() << "not stopped";
+#endif
         return true;
     }
     if (!m_pro->processId())

@@ -62,6 +62,7 @@ protected slots:
 private:
 #ifdef SWF_AUDIO
     bool prepareAudioOutput();
+    bool gotEnoughAudio();
 #endif
     bool startDumpGnash();
     bool stopDumpGnash();
@@ -86,6 +87,7 @@ private:
     QString m_swfFile;
     QImage m_frame;
     QByteArray m_frameBuf;
+    QByteArray m_lastFrameBuf;
     QByteArray m_buf;
     QElapsedTimer m_timer;
     QSemaphore m_sema;
