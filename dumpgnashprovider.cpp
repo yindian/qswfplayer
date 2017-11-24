@@ -240,6 +240,9 @@ void DumpGnashProvider::slotPushAudio()
         if (written > 0)
         {
             m_bufAudio = m_bufAudio.mid(written);
+#if SWF_DEBUG
+            qDebug() << "audio written" << written << "left" << m_bufAudio.size();
+#endif
         }
     }
 }
@@ -479,14 +482,19 @@ bool DumpGnashProvider::gotEnoughAudio()
 {
 #if 0
     bool ret = !m_audioOutput || m_audioOutput->processedUSecs() * SWF_FPS / 1000000 > m_frameIdx;
+#else
+    bool ret = !m_audioOutput || m_bufAudio.size() >= m_audioFormat.bytesForDuration(1000000 / SWF_FPS);
+#endif
     if (ret)
     {
 #if SWF_DEBUG
         qDebug() << "got enough audio";
 #endif
     }
+#if 0
     return ret;
 #else
+    Q_UNUSED(ret);
     return true;
 #endif
 }
