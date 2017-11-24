@@ -42,6 +42,19 @@ ApplicationWindow {
                 onTriggered: Qt.quit();
             }
         }
+        Menu {
+            title: qsTr("&Control")
+            MenuItem {
+                text: qsTr("&Stop")
+                shortcut: StandardKey.Save
+                onTriggered: stopSwf()
+            }
+            MenuItem {
+                text: qsTr("&Reload")
+                shortcut: StandardKey.Refresh
+                onTriggered: loadSwf(swfFileName)
+            }
+        }
     }
 
     Image {
@@ -150,11 +163,19 @@ ApplicationWindow {
 
     function loadSwf(fileName) {
         timer.stop()
+        if (!fileName) {
+            return;
+        }
         swfFileName = fileName
         swfFrameIdx = 0
         preroll = 1
         image.source = "qrc:/swf-open-file-format.png"
         image.visible = true
         image.source = "image://swf/%1/%2".arg(swfFileName).arg(swfFrameIdx)
+    }
+
+    function stopSwf() {
+        timer.stop()
+        SwfBackend.cleanUp()
     }
 }

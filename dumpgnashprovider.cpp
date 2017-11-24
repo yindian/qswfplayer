@@ -253,7 +253,7 @@ void DumpGnashProvider::slotNewAudioState(QAudio::State state)
 #endif
     switch (state) {
     case QAudio::IdleState:
-        if (m_pro->state() == QProcess::NotRunning)
+        if (!m_pro || m_pro->state() == QProcess::NotRunning)
         {
 #if SWF_DEBUG
             qDebug() << "to stop audio";
@@ -295,6 +295,7 @@ void DumpGnashProvider::slotStartDumpGnash(QString uri, int frameReq)
     Q_ASSERT(m_sema.available() == 0);
     if (m_pro)
     {
+        m_cleaningUp = true;
         cleanUp();
         QMetaObject::invokeMethod(this, "slotStartDumpGnash", Qt::QueuedConnection,
                                   Q_ARG(QString, uri),
@@ -334,7 +335,6 @@ void DumpGnashProvider::slotContinueDumpGnash(int frameReq)
 
 void DumpGnashProvider::cleanUp()
 {
-    m_cleaningUp = true;
     if (m_pro)
     {
         if (m_pro->processId())
