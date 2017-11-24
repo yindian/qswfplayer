@@ -72,6 +72,7 @@ private:
     int m_frameIdx;
     int m_frameReq;
     bool m_stopped;
+    bool m_cleaningUp;
     QFile *m_fifo;
     QTcpSocket *m_fifoSkt;
 #ifdef SWF_AUDIO

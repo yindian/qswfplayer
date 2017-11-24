@@ -31,6 +31,7 @@ DumpGnashProvider::DumpGnashProvider(QObject *parent) : QObject(parent)
   , m_frameIdx(0)
   , m_frameReq(-1)
   , m_stopped(false)
+  , m_cleaningUp(false)
   , m_fifo(NULL)
   , m_fifoSkt(NULL)
   #ifdef SWF_AUDIO
@@ -116,6 +117,10 @@ void DumpGnashProvider::slotFinished()
     Q_ASSERT(pro);
     qDebug() << "exit" << "status" << pro->exitStatus() << "code" << pro->exitCode() << "elapsed" << m_timer.elapsed() << "ms";
     m_timer.invalidate();
+    if (m_cleaningUp)
+    {
+        return;
+    }
     QTimer::singleShot(1000 / SWF_FPS / 2, this, SLOT(generateFrame()));
 }
 
@@ -329,6 +334,7 @@ void DumpGnashProvider::slotContinueDumpGnash(int frameReq)
 
 void DumpGnashProvider::cleanUp()
 {
+    m_cleaningUp = true;
     if (m_pro)
     {
         if (m_pro->processId())
@@ -391,10 +397,17 @@ void DumpGnashProvider::cleanUp()
     m_frame = QImage();
     m_buf.clear();
     m_timer.invalidate();
+    m_cleaningUp = false;
+#if SWF_DEBUG
+    qDebug() << "cleaned up";
+#endif
 }
 
 void DumpGnashProvider::generateFrame()
 {
+#if SWF_DEBUG
+    qDebug() << "empty frame";
+#endif
     if (!m_sema.available())
     {
         m_frame = QImage();
