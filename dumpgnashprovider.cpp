@@ -536,7 +536,7 @@ bool DumpGnashProvider::startDumpGnash()
 //        args << "-v" << "-a" << "-p";
         args << "-j" << QString::number(SWF_WIDTH);
         args << "-k" << QString::number(SWF_HEIGHT);
-        args << "-D" << QStringLiteral("%1@%2").arg(fifo).arg(SWF_FPS);
+        args << "-D" << QStringLiteral("%1@%2").arg(fifo).arg(SWF_FPS >= 24 ? SWF_FPS : SWF_FPS * 30 / 24);
 #ifdef SWF_AUDIO
         args << "-A" << (fifo + dotAudio);
 #endif
