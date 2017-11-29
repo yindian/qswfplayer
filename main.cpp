@@ -1,4 +1,5 @@
 #include <QApplication>
+#include <QFile>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include "dumpgnashprovider.h"
@@ -16,6 +17,17 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty("SwfDebug", SWF_DEBUG);
     engine.rootContext()->setContextProperty("SwfFps", SWF_FPS);
     engine.rootContext()->setContextProperty("SwfBackend", swfBackend);
+    QString fileToLoadOnStart;
+    foreach (QString arg, app.arguments())
+    {
+        if (arg.endsWith(QStringLiteral(".swf"), Qt::CaseInsensitive) && QFile::exists(arg))
+        {
+            fileToLoadOnStart = arg;
+            break;
+        }
+    }
+    engine.rootContext()->setContextProperty("SwfFileToLoadOnStart", fileToLoadOnStart);
+
     engine.load(QUrl(QStringLiteral("qrc:/main.qml")));
 
     return app.exec();

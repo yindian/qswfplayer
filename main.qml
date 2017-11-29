@@ -164,6 +164,9 @@ ApplicationWindow {
 
     Component.onCompleted: {
 //        debug = true
+        if (SwfFileToLoadOnStart !== "") {
+            loadSwf(SwfFileToLoadOnStart)
+        }
     }
 
     function loadSwf(fileName) {
